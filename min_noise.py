@@ -1,112 +1,119 @@
-import time
-from datetime import datetime, timedelta
 from kivy.app import App
+from kivy.uix.button import Button
+from kivy.uix.dropdown import DropDown
+from kivy.uix.textinput import TextInput
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
-from kivy.uix.dropdown import DropDown
-from kivy.uix.button import Button
-from kivy.uix.spinner import Spinner
+from kivy.core.audio import SoundLoader
+import datetime
+import time
 
 
-class SoundApp(App):
-    def build(self):
-        self.layout = GridLayout(cols=2)
+class SoundApp(GridLayout):
+    def __init__(self, **kwargs):
+        super(SoundApp, self).__init__(**kwargs)
+        self.cols = 2
+        self.padding = 10
 
-        self.layout.add_widget(Label(text='Hours:'))
+        # Button to play the sound
+        self.play_button = Button(text='Play', font_size=30, size_hint=(0.5, 0.2))
+        self.play_button.bind(on_press=self.play_sound)
+        self.add_widget(self.play_button)
+
+        # Button to stop the sound
+        self.stop_button = Button(text='Stop', font_size=30, size_hint=(0.5, 0.2))
+        self.stop_button.bind(on_press=self.stop_sound)
+        self.add_widget(self.stop_button)
+
+        # Dropdown for selecting hours
         self.hours_dropdown = DropDown()
-        for i in range(1, 13):
-            self.hours_dropdown.add_widget(
-                Button(text=str(i), size_hint_y=None, height=30))
-        self.hours_spinner = Spinner(
-            text='1',
-            values=('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12')) # noQA
-        self.hours_spinner.bind(on_release=self.hours_dropdown.open)
-        self.hours_dropdown.bind(on_select=lambda instance, x: setattr(self.hours_spinner, 'text', x))
-        self.layout.add_widget(self.hours_spinner)
+        for hour in range(1, 13):
+            btn = Button(text=str(hour), size_hint_y=None, height=44)
+            btn.bind(on_release=lambda btn: self.hours_dropdown.select(btn.text))
+            self.hours_dropdown.add_widget(btn)
+        self.hours_button = Button(text='Hours', size_hint=(0.5, 0.2))
+        self.hours_button.bind(on_release=self.hours_dropdown.open)
+        self.hours_dropdown.bind(on_select=lambda instance, x: setattr(self.hours_button, 'text', x))
+        self.add_widget(self.hours_button)
 
-        self.layout.add_widget(Label(text='Minutes:'))
+        # Dropdown for selecting minutes
         self.minutes_dropdown = DropDown()
-        for i in range(0, 60, 5):
-            self.minutes_dropdown.add_widget(Button(text=str(i), size_hint_y=None, height=30))
-        self.minutes_spinner = Spinner(text='0', values=('0', '5', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'))
-        self.minutes_spinner.bind(on_release=self.minutes_dropdown.open)
-        self.minutes_dropdown.bind(on_select=lambda instance, x: setattr(self.minutes_spinner, 'text', x))
-        self.layout.add_widget(self.minutes_spinner)
+        for minute in range(0, 60):
+            btn = Button(text=str(minute), size_hint_y=None, height=44)
+            btn.bind(on_release=lambda btn: self.minutes_dropdown.select(btn.text))
+            self.minutes_dropdown.add_widget(btn)
+        self.minutes_button = Button(text='Minutes', size_hint=(0.5, 0.2))
+        self.minutes_button.bind(on_release=self.minutes_dropdown.open)
+        self.minutes_dropdown.bind(on_select=lambda instance, x: setattr(self.minutes_button, 'text', x))
+        self.add_widget(self.minutes_button)
 
-        self.layout.add_widget(Label(text='AM/PM:'))
-        self.am_pm_spinner = Spinner(text='AM', values=('AM', 'PM'))
-        self.layout.add_widget(self.am_pm_spinner)
+        # Button to set the stop time
+        self.set_time_button = Button(text='Set Time', font_size=30, size_hint=(0.5, 0.2))
+        self.set_time_button.bind(on_press=self.set_stop_time)
+        self.add_widget(self.set_time_button)
 
-        self.layout.add_widget(Label(text='End Time:'))
-        self.end_time = TextInput(text='', multiline=False)
-        self.layout.add_widget(self.end_time)
+        # Button to snooze for 10 minutes
+        self.snooze10_button = Button(text='Snooze +10', font_size=30, size_hint=(0.5, 0.2))
+        self.snooze10_button.bind(on_press=self.snooze_10)
+        self.add_widget(self.snooze10_button)
 
-        self.layout.add_widget(Label(text=''))
-        self.play_button = Button(text='Play sound', on_press=self.play_sound)
-        self.layout.add_widget(self.play_button)
+        # Button to snooze for 15 minutes
+        self.snooze15_button = Button(text='Snooze +15', font_size=30, size_hint=(0.5, 0.2))
+        self.snooze15_button.bind(on_press=self.snooze_15)
+        self.add_widget(self.snooze15_button)
 
-        self.layout.add_widget(Label(text=''))
-        self.stop_button = Button(text='Stop sound', on_press=self.stop_sound, disabled=True)
-        self.layout.add_widget(self.stop_button)
+        # Label to display the stop time
+        self.stop_time_label = Label(text='', font_size=20, size_hint=(0.5, 0.2))
+        self.add_widget(self.stop_time_label)
 
-        self.layout.add_widget(Label(text=''))
-        self.snooze_10_button = Button(text='Snooze +10', on_press=self.snooze_10)
-        self.layout.add_widget(self.snooze_10_button)
-
-        self.layout.add_widget(Label(text=''))
-        self.snooze_15_button = Button(text='Snooze +15', on_press=self.snooze_15)
-        self.layout.add_widget(self.snooze_15_button)
-
-        return self.layout
-
+        # Initialize stop time to None
+        self.stop_time = None
+        
+        # Initialize sound file
+        self.sound_file = SoundLoader.load('brown_noise.wav')
+        
     def play_sound(self, instance):
-        # Convert user input to seconds
-        hours = int(self.hours_spinner.text) % 12
-        minutes = int(self.minutes_spinner.text)
-        am_pm = self.am_pm_spinner.text
-        if am_pm == 'PM':
-            hours += 12
-        current_time = datetime.now().replace(hour=hours, minute=minutes, second=0, microsecond=0)
-
-        if current_time < datetime.now():
-            current_time += timedelta(days=1)
-
-        # Set end time if provided
-        if self.end_time.text:
-            end_time = datetime.strptime(self.end_time.text, '%H:%M')
-            time_delta = end_time - datetime.now()
-            total_time = time_delta.seconds
-
-        self.stop_button.disabled = False
-        self.play_button.disabled = True
-
-        # Play sound for specified time
-        for i in range(total_time):
-            # Check if snooze button has been pressed
-            if hasattr(self, 'snooze') and self.snooze:
-                snooze_time = self.snooze - datetime.now()
-                if snooze_time.seconds > 0:
-                    time.sleep(snooze_time.seconds)
-                self.snooze = None
-            else:
-                time.sleep(1)
-
-            # Check if stop button has been pressed
-            if not self.stop_button.disabled:
-                self.stop_sound(None)
-                break
-
-        self.stop_button.disabled = True
-        self.play_button.disabled = False
-
+        # Play sound file
+        self.sound_file.play()
+        
     def stop_sound(self, instance):
-        self.stop_button.disabled = True
-
+        # Stop sound file
+        self.sound_file.stop()
+        
+    def set_stop_time(self, instance):
+        # Get current time
+        now = datetime.datetime.now()
+        
+        # Get selected hours and minutes from dropdowns
+        hours = int(self.hours_button.text)
+        minutes = int(self.minutes_button.text)
+        
+        # Set stop time to the next occurrence of selected time
+        if now.hour > hours or (now.hour == hours and now.minute >= minutes):
+            self.stop_time = datetime.datetime(now.year, now.month, now.day+1, hours, minutes)
+        else:
+            self.stop_time = datetime.datetime(now.year, now.month, now.day, hours, minutes)
+        
+        # Update stop time label
+        self.stop_time_label.text = 'Sound will stop at: ' + self.stop_time.strftime('%I:%M %p')
+        
     def snooze_10(self, instance):
-        self.snooze = datetime.now() + timedelta(minutes=10)
-
+        # Play sound for 10 minutes
+        self.sound_file.play()
+        time.sleep(600)
+        self.sound_file.stop()
+        
     def snooze_15(self, instance):
-        self.snooze = datetime.now() + timedelta(minutes=15)
+        # Play sound for 15 minutes
+        self.sound_file.play()
+        time.sleep(900)
+        self.sound_file.stop()
+
+
+class SoundAppMain(App):
+    def build(self):
+        return SoundApp()
+
 
 if __name__ == '__main__':
-    SoundApp().run()
+    SoundAppMain().run()
