@@ -1,10 +1,10 @@
 from kivy.app import App
 from kivy.uix.button import Button
 from kivy.uix.dropdown import DropDown
-from kivy.uix.textinput import TextInput
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
 from kivy.core.audio import SoundLoader
+from kivy.clock import Clock
 import datetime
 import time
 
@@ -27,7 +27,7 @@ class SoundApp(GridLayout):
 
         # Dropdown for selecting hours
         self.hours_dropdown = DropDown()
-        for hour in range(1, 13):
+        for hour in range(1, 23):
             btn = Button(text=str(hour), size_hint_y=None, height=44)
             btn.bind(on_release=lambda btn: self.hours_dropdown.select(btn.text))
             self.hours_dropdown.add_widget(btn)
@@ -68,46 +68,73 @@ class SoundApp(GridLayout):
 
         # Initialize stop time to None
         self.stop_time = None
-        
+
+        # Initialize snooze flags to False
+        self.snooze_10_flag = False
+        self.snooze_15_flag = False
+
         # Initialize sound file
         self.sound_file = SoundLoader.load('brown_noise.wav')
-        
+
     def play_sound(self, instance):
-        # Play sound file
+        # Play sound file in a loop
+        self.sound_file.loop = True
         self.sound_file.play()
-        
+
     def stop_sound(self, instance):
-        # Stop sound file
+        # Stop sound file and reset loop
         self.sound_file.stop()
-        
+        self.sound_file.loop = False
+        self.stop_time_label.text = ''
+
     def set_stop_time(self, instance):
         # Get current time
         now = datetime.datetime.now()
-        
+
         # Get selected hours and minutes from dropdowns
         hours = int(self.hours_button.text)
         minutes = int(self.minutes_button.text)
-        
+
+        if self.snooze_10_flag:
+            if sound_file.loop == False:
+                self.play_sound()
+                self.stop_time = datetime.datetime(now.year, now.month, now.day, now.hours, now.minutes+10)
+            else:
+                self.stop_time = datetime.datetime(now.year, now.month, now.day, hours, minutes+10)
+            self.snooze_10_flag = False
+        elif self.snooze_15_flag:
+            if sound_file.loop == False:
+                self.play_sound()
+                self.stop_time = datetime.datetime(now.year, now.month, now.day, now.hours, now.minutes+15)
+            else:
+                self.stop_time = datetime.datetime(now.year, now.month, now.day, hours, minutes+15)
+            self.snooze_15_flag = False
         # Set stop time to the next occurrence of selected time
-        if now.hour > hours or (now.hour == hours and now.minute >= minutes):
+        elif now.hour > hours or (now.hour == hours and now.minute >= minutes):
             self.stop_time = datetime.datetime(now.year, now.month, now.day+1, hours, minutes)
         else:
             self.stop_time = datetime.datetime(now.year, now.month, now.day, hours, minutes)
-        
+
         # Update stop time label
         self.stop_time_label.text = 'Sound will stop at: ' + self.stop_time.strftime('%I:%M %p')
-        
+
+        # Schedule stop sound event
+        Clock.schedule_once(self.stop_sound_event, (self.stop_time - now).total_seconds())
+
+    def stop_sound_event(self, dt):
+        # Stop sound file and reset loop
+        self.sound_file.stop()
+        self.sound_file.loop = False
+
     def snooze_10(self, instance):
         # Play sound for 10 minutes
-        self.sound_file.play()
-        time.sleep(600)
-        self.sound_file.stop()
-        
+        self.snooze_10_flag = True
+        self.set_stop_time(instance)
+
     def snooze_15(self, instance):
         # Play sound for 15 minutes
-        self.sound_file.play()
-        time.sleep(900)
-        self.sound_file.stop()
+        self.snooze_10_flag = True
+        self.set_stop_time(instance)
 
 
 class SoundAppMain(App):
